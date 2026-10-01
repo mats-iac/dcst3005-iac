@@ -12,7 +12,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: tf-project/rg
+        working-directory: modul-5/terraform-projects/rg
 
     env:
       TF_INPUT: false
