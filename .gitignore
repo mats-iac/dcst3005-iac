@@ -1,3 +1,5 @@
+*.tfplan
+
 # Local .terraform directories
 .terraform/
 
