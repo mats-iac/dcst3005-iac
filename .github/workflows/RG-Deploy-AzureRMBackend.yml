@@ -1,1 +1,60 @@
+name: Terraform – med verdier fra Key Vault
 
+on: workflow_dispatch
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: dev
+
+    defaults:
+      run:
+        working-directory: modul-5/terraform-projects/rg
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v5
+
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Logg inn i Azure
+        uses: Azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Hent parametere fra Key Vault
+        run: |
+          KV="${{ secrets.KEYVAULT_NAME }}"
+          RG=$(az keyvault secret show --vault-name "$KV" --name rgname  --query value -o tsv)
+          LOC=$(az keyvault secret show --vault-name "$KV" --name location --query value -o tsv)
+          echo "TF_VAR_rg_name=$RG"   >> "$GITHUB_ENV"
+          echo "TF_VAR_location=$LOC" >> "$GITHUB_ENV"
+
+      - name: Init
+        run: | 
+          terraform init \
+          -backend-config="${{ github.workspace }}/modul-5/terraform-projects/shared/backend.hcl" \
+          -backend-config="key=env/dev/rg.tfstate"
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        run: terraform plan
+
+      - name: Apply
+        run: terraform apply -auto-approve
