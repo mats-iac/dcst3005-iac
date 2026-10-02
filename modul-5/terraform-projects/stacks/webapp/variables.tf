@@ -31,3 +31,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "node_version" {
+  description = "Node-versjon for web app-en"
+  type        = string
+  default     = "22-lts"
+}
