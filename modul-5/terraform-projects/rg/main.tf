@@ -16,6 +16,6 @@ provider "azurerm" {
 }
 
 resource "azurerm_resource_group" "fd-rg" {
-  name     = "rg-workflow-demo-mats"
-  location = "West Europe"
+  name     = var.rg_name
+  location = var.location
 }
