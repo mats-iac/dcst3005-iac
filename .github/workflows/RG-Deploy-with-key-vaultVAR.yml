@@ -13,8 +13,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: tf-project/rg
-
+        working-directory: modul-5/terraform-projects/rg
     env:
       ARM_USE_OIDC: true
       ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
