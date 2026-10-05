@@ -1,0 +1,102 @@
+name: Oblig 1 - Terraform Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Miljø som skal deployes"
+        type: choice
+        options: [dev, test]
+        default: dev
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: oblig1-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    env:
+      MILJO: ${{ inputs.environment }}
+
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_VAR_environment: ${{ inputs.environment }}
+      TF_VAR_name_prefix: mats
+
+      TF_VAR_backend_resource_group_name: rg-tfstate-32of9u
+      TF_VAR_backend_storage_account_name: sttfstate32of9u
+      TF_VAR_backend_container_name: tfstate
+
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v5
+
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Logg inn i Azure med OIDC
+        uses: Azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Vis Azure-identitet
+        run: az account show
+
+      # ---------------- NETWORK ----------------
+
+      - name: Init network
+        working-directory: stacks/network
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/shared/backend.hcl" \
+            -backend-config="key=env/${{ env.MILJO }}/network.tfstate"
+
+      - name: Validate network
+        working-directory: stacks/network
+        run: terraform validate
+
+      - name: Plan network
+        working-directory: stacks/network
+        run: terraform plan
+
+      - name: Apply network
+        working-directory: stacks/network
+        run: terraform apply -auto-approve
+
+      # ---------------- WORKLOAD ----------------
+
+      - name: Init workload
+        working-directory: stacks/workload
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/shared/backend.hcl" \
+            -backend-config="key=env/${{ env.MILJO }}/workload.tfstate"
+
+      - name: Validate workload
+        working-directory: stacks/workload
+        run: terraform validate
+
+      - name: Plan workload
+        working-directory: stacks/workload
+        run: terraform plan
+
+      - name: Apply workload
+        working-directory: stacks/workload
+        run: terraform apply -auto-approve
