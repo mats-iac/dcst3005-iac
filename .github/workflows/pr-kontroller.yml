@@ -7,6 +7,7 @@ on:
       - 'modul-6/buildOnce-deployMany/simple-terraform/terraform/**'
       - '.github/workflows/pr-kontroller.yml'
       - '.github/workflows/pr-plan.yml'
+      - '.github/workflows/webapp-multi-env.yml'
 
 permissions:
   contents: read
