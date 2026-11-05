@@ -1,3 +1,4 @@
+
 name: Terraform WebApp - Multi Environment
 
 on:
@@ -19,8 +20,13 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: webapp-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
 jobs:
-  deploy:
+  plan:
+    name: Terraform plan
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment || 'dev' }}
 
@@ -36,6 +42,7 @@ jobs:
       ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_INPUT: false
       TF_IN_AUTOMATION: true
+
     steps:
       - name: Hent koden
         uses: actions/checkout@v5
@@ -53,16 +60,13 @@ jobs:
       - name: Hent tfvars fra Key Vault
         shell: bash
         run: |
-          KV="${{ secrets.KEYVAULT_NAME }}"
-
           az keyvault secret show \
-            --vault-name "$KV" \
+            --vault-name "${{ secrets.KEYVAULT_NAME }}" \
             --name "tfvars-${{ env.MILJO }}" \
             --query value \
             -o tsv > environment.tfvars
-        
+
       - name: Init
-        shell: bash
         run: |
           terraform init \
             -backend-config="${{ github.workspace }}/modul-5/terraform-projects/shared/backend.hcl" \
@@ -72,10 +76,67 @@ jobs:
         run: terraform validate
 
       - name: Plan
-        run: terraform plan -var-file=environment.tfvars
+        run: terraform plan -var-file=environment.tfvars -out=tfplan
+
+      - name: Ta vare på planen
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ github.sha }}
+          path: modul-5/terraform-projects/stacks/webapp/tfplan
+          retention-days: 5
+          if-no-files-found: error
+
+      - name: Slett parameterfila
+        if: always()
+        run: rm -f environment.tfvars
+
+  apply:
+    name: Terraform apply
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'dev' }}
+
+    defaults:
+      run:
+        working-directory: modul-5/terraform-projects/stacks/webapp
+
+    env:
+      MILJO: ${{ inputs.environment || 'dev' }}
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v5
+
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Logg inn i Azure
+        uses: Azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Hent planen
+        uses: actions/download-artifact@v8
+        with:
+          name: tfplan-${{ github.sha }}
+          path: modul-5/terraform-projects/stacks/webapp
+
+      - name: Init
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/modul-5/terraform-projects/shared/backend.hcl" \
+            -backend-config="key=env/${{ env.MILJO }}/webapp.tfstate"
 
       - name: Apply
-        run: terraform apply -auto-approve -var-file=environment.tfvars
+        run: terraform apply tfplan
 
       - name: Verifiser at appen svarer
         run: |
