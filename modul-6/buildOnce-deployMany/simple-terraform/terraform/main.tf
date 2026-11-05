@@ -16,7 +16,7 @@ resource "azurerm_resource_group" "main" {
     Project     = var.project_name
     Test        = "TestValue"
     Test2       = "TestValue2"
-          GitBranch   = "first_branch"
+    GitBranch   = "first_branch"
   }
 }
 
