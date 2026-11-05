@@ -1,0 +1,142 @@
+name: Terraform mot ett miljø
+
+on:
+  workflow_call:
+    inputs:
+      miljo:
+        description: Miljøet som skal rulles ut
+        required: true
+        type: string
+      plan_miljo:
+        description: GitHub-environmentet plan-jobben kjører under
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+  
+jobs:
+  plan:
+    name: Terraform plan - ${{ inputs.miljo }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.plan_miljo }}
+
+    defaults:
+      run:
+        working-directory: modul-5/terraform-projects/stacks/webapp
+
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v5
+
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Logg inn i Azure
+        uses: Azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Hent tfvars fra Key Vault
+        run: |
+          az keyvault secret show \
+            --vault-name "${{ secrets.KEYVAULT_NAME }}" \
+            --name "tfvars-${{ inputs.miljo }}" \
+            --query value -o tsv > environment.tfvars
+
+      - name: Init
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/modul-5/terraform-projects/shared/backend.hcl" \
+            -backend-config="key=env/${{ inputs.miljo }}/webapp.tfstate"
+
+      - name: Validate
+        run: terraform validate
+
+      - name: Plan
+        run: terraform plan -var-file=environment.tfvars -out=tfplan
+
+      - name: Ta vare på planen
+        uses: actions/upload-artifact@v7
+        with:
+          name: tfplan-${{ inputs.miljo }}-${{ github.sha }}
+          path: modul-5/terraform-projects/stacks/webapp/tfplan
+          retention-days: 5
+          if-no-files-found: error
+
+      - name: Slett parameterfila
+        if: always()
+        run: rm -f environment.tfvars
+        
+  apply:
+    name: Terraform apply - ${{ inputs.miljo }}
+    needs: plan
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.miljo }}
+
+    defaults:
+      run:
+        working-directory: modul-5/terraform-projects/stacks/webapp
+
+    env:
+      ARM_USE_OIDC: true
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      TF_INPUT: false
+      TF_IN_AUTOMATION: true
+
+    steps:
+      - name: Hent koden
+        uses: actions/checkout@v5
+
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Logg inn i Azure
+        uses: Azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Hent planen
+        uses: actions/download-artifact@v8
+        with:
+          name: tfplan-${{ inputs.miljo }}-${{ github.sha }}
+          path: modul-5/terraform-projects/stacks/webapp
+
+      - name: Init
+        run: |
+          terraform init \
+            -backend-config="${{ github.workspace }}/modul-5/terraform-projects/shared/backend.hcl" \
+            -backend-config="key=env/${{ inputs.miljo }}/webapp.tfstate"
+
+      - name: Apply
+        run: terraform apply tfplan
+
+      - name: Verifiser at appen svarer
+        run: |
+          URL=$(terraform output -raw webapp_url)
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 10 "https://$URL" > /dev/null; then
+              echo "Appen svarer på https://$URL"
+              exit 0
+            fi
+            echo "Forsøk $i: ikke oppe ennå, venter..."
+            sleep 15
+          done
+          echo "Appen svarte ikke innen tidsfristen"
+          exit 1
+
