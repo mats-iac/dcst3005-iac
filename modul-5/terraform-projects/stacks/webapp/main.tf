@@ -54,9 +54,10 @@ resource "azurerm_linux_web_app" "app" { # tflint-ignore: azurerm_app_service_mi
   }
 
   site_config {
-    ftps_state        = "Disabled"
-    http2_enabled     = true
-    health_check_path = "/"
+    ftps_state                        = "Disabled"
+    http2_enabled                     = true
+    health_check_path                 = "/"
+    health_check_eviction_time_in_min = 10
 
     application_stack {
       node_version = var.node_version
