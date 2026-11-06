@@ -69,6 +69,10 @@ resource "azurerm_storage_account" "sa" {
   #checkov:skip=CKV_AZURE_59:GitHub-hostede runnere trenger nettverkstilgang til Terraform state; offentlig blob-tilgang er deaktivert
   #checkov:skip=CKV_AZURE_33:Storage-kontoen brukes til Terraform state og ikke Azure Queue
   #checkov:skip=CKV_AZURE_206:LRS er valgt for lavere kostnader i studentmiljoet; versjonering og soft delete er aktivert
+  #checkov:skip=CKV2_AZURE_40:Shared Key beholdes midlertidig for bootstrap-kompatibilitet; GitHub Actions bruker Entra ID
+  #checkov:skip=CKV2_AZURE_33:Privat endepunkt krever nettverkstilknytning som ikke inngaar i studentoppsettet
+  #checkov:skip=CKV2_AZURE_41:SAS-utloepspolicy er ikke konfigurert i studentoppsettet; Entra ID brukes for Terraform state
+  #checkov:skip=CKV2_AZURE_1:Azure bruker plattformadministrert kryptering; egen noekkel er ikke paakrevd i studentoppsettet
   name                     = local.sa_final
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
@@ -107,6 +111,7 @@ resource "azurerm_storage_account" "sa" {
 
 # Private container for state
 resource "azurerm_storage_container" "state" {
+  #checkov:skip=CKV2_AZURE_21:Leselogging av state er ikke konfigurert i studentoppsettet; redusert sporbarhet aksepteres
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.sa.id
   container_access_type = "private"
