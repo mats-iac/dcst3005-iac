@@ -8,7 +8,9 @@ on:
       - 'modul-5/terraform-projects/**'
       - 'modul-8/terraform-projects/**'
       - '.github/workflows/drift.yml'
+      - '.github/workflows/cd-dev-nettverk.yml'
       - '.github/workflows/pr-kontroller.yml'
+    
 
 permissions:
   contents: read
