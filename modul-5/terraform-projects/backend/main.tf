@@ -65,6 +65,10 @@ resource "azurerm_resource_group" "rg" {
 
 # Storage Account for Terraform state
 resource "azurerm_storage_account" "sa" {
+  #checkov:skip=CKV_AZURE_206:LRS er valgt for lavere kostnader i studentmiljoet; versjonering og soft delete er aktivert
+  #checkov:skip=CKV_AZURE_59:GitHub-hostede runnere trenger nettverkstilgang til Terraform state; offentlig blob-tilgang er deaktivert
+  #checkov:skip=CKV_AZURE_33:Storage-kontoen brukes til Terraform state og ikke Azure Queue
+  #checkov:skip=CKV_AZURE_206:LRS er valgt for lavere kostnader i studentmiljoet; versjonering og soft delete er aktivert
   name                     = local.sa_final
   resource_group_name      = azurerm_resource_group.rg.name
   location                 = azurerm_resource_group.rg.location
@@ -95,6 +99,10 @@ resource "azurerm_storage_account" "sa" {
   }
 
   tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Private container for state
@@ -102,10 +110,18 @@ resource "azurerm_storage_container" "state" {
   name                  = var.container_name
   storage_account_id    = azurerm_storage_account.sa.id
   container_access_type = "private"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # Key Vault (RBAC-enabled)
 resource "azurerm_key_vault" "kv" {
+  #checkov:skip=CKV_AZURE_189:GitHub-hostede runnere trenger nettverkstilgang til Key Vault i studentmiljoet
+  #checkov:skip=CKV_AZURE_109:Brannmurbegrensninger er ikke konfigurert fordi GitHub-runnerne benytter dynamiske IP-adresser
+  #checkov:skip=CKV2_AZURE_32:Private endpoint krever privat nettverkstilknytning som ikke inngaar i studentoppsettet
+  #checkov:skip=CKV2_AZURE_40:Shared Key beholdes midlertidig for bootstrap-kompatibilitet; GitHub Actions bruker Entra ID og OIDC
   name                       = local.kv_final
   location                   = azurerm_resource_group.rg.location
   resource_group_name        = azurerm_resource_group.rg.name
@@ -119,6 +135,10 @@ resource "azurerm_key_vault" "kv" {
   public_network_access_enabled = true
 
   tags = var.tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 # --------- RBAC ASSIGNMENTS ---------

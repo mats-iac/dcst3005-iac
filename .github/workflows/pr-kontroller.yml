@@ -4,34 +4,40 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'modul-6/buildOnce-deployMany/simple-terraform/terraform/**'
+      - 'modul-5/terraform-projects/**'
       - '.github/workflows/pr-kontroller.yml'
-      - '.github/workflows/pr-plan.yml'
-      - '.github/workflows/webapp-multi-env.yml'
 
 permissions:
   contents: read
 
 jobs:
   kontroller:
-    name: fmt og validate
+    name: kodekontroll
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Hent koden
+        uses: actions/checkout@v5
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Installer Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.15.9
 
-      - name: Sjekk formatering
-        working-directory: modul-6/buildOnce-deployMany/simple-terraform/terraform
-        run: terraform fmt -check -recursive
+      - name: Installer TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.65.0
 
-      - name: Klargjør providere uten backend
-        working-directory: modul-6/buildOnce-deployMany/simple-terraform/terraform
-        run: terraform init -backend=false
+      - name: Installer Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
 
-      - name: Valider koden
-        working-directory: modul-6/buildOnce-deployMany/simple-terraform/terraform
-        run: terraform validate
+      - name: Installer Checkov
+        run: pip install checkov==3.3.21
+
+      - name: Kjør valideringsskript
+        run: bash modul-5/terraform-projects/scripts/valider.sh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
