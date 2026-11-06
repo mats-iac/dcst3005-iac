@@ -1,0 +1,9 @@
+# Kjør kun sikkerhetskontroller for Terraform
+framework:
+  - terraform
+
+# Vis en kortere utskrift uten kodeblokker
+compact: true
+
+# Vis bare feil, ikke alle beståtte kontroller
+quiet: true
