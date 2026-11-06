@@ -1,3 +1,4 @@
+
 name: PR-kontroller
 
 on:
@@ -5,6 +6,8 @@ on:
     branches: [main]
     paths:
       - 'modul-5/terraform-projects/**'
+      - 'modul-8/terraform-projects/**'
+      - '.github/workflows/drift.yml'
       - '.github/workflows/pr-kontroller.yml'
 
 permissions:
@@ -22,7 +25,7 @@ jobs:
       - name: Installer Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.15.9
+          terraform_version: 1.17.1
 
       - name: Installer TFLint
         uses: terraform-linters/setup-tflint@v6
@@ -37,7 +40,16 @@ jobs:
       - name: Installer Checkov
         run: pip install checkov==3.3.21
 
-      - name: Kjør valideringsskript
+      - name: Valider modul 5
         run: bash modul-5/terraform-projects/scripts/valider.sh
         env:
           GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Kontroller formatering i modul 8
+        run: terraform -chdir=modul-8/terraform-projects fmt -check -recursive
+
+      - name: Initialiser modul 8 uten backend
+        run: terraform -chdir=modul-8/terraform-projects/stacks/nettverk init -backend=false
+
+      - name: Valider modul 8
+        run: terraform -chdir=modul-8/terraform-projects/stacks/nettverk validate
